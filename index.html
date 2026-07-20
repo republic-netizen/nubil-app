@@ -557,3 +557,280 @@
 
 <div class="main">
   <div class="topbar">
+    <div class="topbar-left">
+      <button class="menu-btn" id="menuBtn" aria-label="Toggle subjects">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="4" y1="7" x2="20" y2="7"></line><line x1="4" y1="12" x2="20" y2="12"></line><line x1="4" y1="17" x2="20" y2="17"></line></svg>
+      </button>
+      <div>
+        <div class="topbar-title" id="topTitle">General study help</div>
+        <div class="topbar-sub" id="topSub">Ask anything — I'll walk you through it</div>
+      </div>
+    </div>
+    <button class="clear-btn" id="clearBtn">Clear chat</button>
+  </div>
+
+  <div class="chat-scroll" id="chatScroll">
+    <div class="empty-state" id="emptyState">
+      <h1>What are you working on?</h1>
+      <p>Pick a subject on the left, then ask a question, paste a problem, or describe what you're stuck on. I'll explain the reasoning, not just give the answer.</p>
+      <div class="prompt-row">
+        <button class="prompt-suggest">Explain photosynthesis simply</button>
+        <button class="prompt-suggest">Help me solve 3x + 7 = 22</button>
+        <button class="prompt-suggest">Quiz me on WWII causes</button>
+        <button class="prompt-suggest">Check my essay thesis</button>
+      </div>
+    </div>
+    <div class="chat-inner" id="chatInner"></div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-inner">
+      <textarea id="input" placeholder="Ask a question or paste your problem..." rows="1"></textarea>
+      <button class="send-btn" id="sendBtn" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+      </button>
+    </div>
+    <div class="hint">Nubil can make mistakes. Double-check important facts before an exam.</div>
+  </div>
+</div>
+</div>
+
+<script>
+let appPassword = "";
+
+const gateOverlay = document.getElementById('gateOverlay');
+const gateInput = document.getElementById('gateInput');
+const gateBtn = document.getElementById('gateBtn');
+const gateError = document.getElementById('gateError');
+const appShell = document.getElementById('appShell');
+
+async function tryUnlock(){
+  const value = gateInput.value.trim();
+  if(!value) return;
+  gateBtn.disabled = true;
+  gateError.textContent = '';
+
+  try{
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password: value,
+        verifyOnly: true
+      })
+    });
+
+    if(response.status === 401){
+      gateError.textContent = 'Incorrect password. Try again.';
+      gateBtn.disabled = false;
+      return;
+    }
+
+    // Any non-401 response (success or another error like a busy API)
+    // means the password itself was accepted.
+    appPassword = value;
+    gateOverlay.style.display = 'none';
+    appShell.classList.add('visible');
+  } catch(err){
+    gateError.textContent = "Couldn't reach the server. Check your connection.";
+    gateBtn.disabled = false;
+  }
+}
+
+gateBtn.addEventListener('click', tryUnlock);
+gateInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    tryUnlock();
+  }
+});
+gateInput.focus();
+
+let currentSubject = "General";
+let history = [];
+
+const subjectMeta = {
+  "General": {title:"General study help", sub:"Ask anything — I'll walk you through it"},
+  "Math": {title:"Math help", sub:"Show your work and I'll help you find the next step"},
+  "Science": {title:"Science help", sub:"Concepts, labs, and why things work the way they do"},
+  "History": {title:"History help", sub:"Causes, context, and connecting the timeline"},
+  "Writing": {title:"Writing / English help", sub:"Structure, grammar, and stronger arguments"},
+  "Languages": {title:"Language practice", sub:"Vocabulary, grammar, and conversation practice"},
+  "Test prep": {title:"Test prep", sub:"Practice questions and review strategy"}
+};
+
+const subjectListEl = document.getElementById('subjectList');
+const chatScroll = document.getElementById('chatScroll');
+const chatInner = document.getElementById('chatInner');
+const emptyState = document.getElementById('emptyState');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const topTitle = document.getElementById('topTitle');
+const topSub = document.getElementById('topSub');
+const clearBtn = document.getElementById('clearBtn');
+const menuBtn = document.getElementById('menuBtn');
+const sidebarEl = document.querySelector('.sidebar');
+const sidebarBackdrop = document.getElementById('sidebarBackdrop');
+
+function openSidebar(){
+  sidebarEl.classList.add('open');
+  sidebarBackdrop.classList.add('visible');
+}
+function closeSidebar(){
+  sidebarEl.classList.remove('open');
+  sidebarBackdrop.classList.remove('visible');
+}
+menuBtn.addEventListener('click', () => {
+  if(sidebarEl.classList.contains('open')) closeSidebar();
+  else openSidebar();
+});
+sidebarBackdrop.addEventListener('click', closeSidebar);
+
+subjectListEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.subject-chip');
+  if(!btn) return;
+  document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  currentSubject = btn.dataset.subject;
+  const meta = subjectMeta[currentSubject];
+  topTitle.textContent = meta.title;
+  topSub.textContent = meta.sub;
+  closeSidebar();
+});
+
+document.querySelectorAll('.prompt-suggest').forEach(btn => {
+  btn.addEventListener('click', () => {
+    input.value = btn.textContent;
+    sendMessage();
+  });
+});
+
+clearBtn.addEventListener('click', () => {
+  history = [];
+  chatInner.innerHTML = '';
+  emptyState.style.display = 'block';
+});
+
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+});
+
+input.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderMarkdownLite(text){
+  let html = escapeHtml(text);
+  html = html.replace(/```([\s\S]*?)```/g, (m, code) => `<pre>${code.trim()}</pre>`);
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const lines = html.split('\n');
+  let out = '';
+  let inList = false;
+  for(const line of lines){
+    const m = line.match(/^[-*]\s+(.*)/);
+    if(m){
+      if(!inList){ out += '<ul>'; inList = true; }
+      out += `<li>${m[1]}</li>`;
+    } else {
+      if(inList){ out += '</ul>'; inList = false; }
+      if(line.trim() === ''){ continue; }
+      out += `<p>${line}</p>`;
+    }
+  }
+  if(inList) out += '</ul>';
+  return out || '<p></p>';
+}
+
+function addMessage(role, text){
+  emptyState.style.display = 'none';
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+  const card = document.createElement('div');
+  card.className = `card ${role}`;
+  const tag = document.createElement('span');
+  tag.className = 'role-tag';
+  tag.textContent = role === 'user' ? 'you' : 'studydesk';
+  card.appendChild(tag);
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.innerHTML = renderMarkdownLite(text);
+  card.appendChild(body);
+  row.appendChild(card);
+  chatInner.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+  return body;
+}
+
+function addTyping(){
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.id = 'typingRow';
+  const card = document.createElement('div');
+  card.className = 'card assistant';
+  card.innerHTML = '<span class="role-tag">studydesk</span><div class="typing"><span></span><span></span><span></span></div>';
+  row.appendChild(card);
+  chatInner.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+
+function removeTyping(){
+  const el = document.getElementById('typingRow');
+  if(el) el.remove();
+}
+
+async function sendMessage(){
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  addMessage('user', text);
+  history.push({role:'user', content:text});
+  addTyping();
+
+  try{
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: currentSubject,
+        password: appPassword,
+        messages: history
+      })
+    });
+
+    const data = await response.json();
+    removeTyping();
+
+    if(response.ok && data.reply){
+      addMessage('assistant', data.reply);
+      history.push({role:'assistant', content: data.reply});
+    } else {
+      addMessage('assistant', data.error || "Sorry, something went wrong on my end. Try asking again.");
+    }
+  } catch(err){
+    removeTyping();
+    addMessage('assistant', "I couldn't reach the AI service just now. Check your connection and try again.");
+  }
+
+  sendBtn.disabled = false;
+  input.focus();
+}
+</script>
+
+</body>
+</html>
