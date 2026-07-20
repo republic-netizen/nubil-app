@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nubli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12141c;
+    --panel:#191c26;
+    --panel-2:#1f2330;
+    --paper:#f4efe4;
+    --paper-line:#e3dcc9;
+    --amber:#e8a33d;
+    --amber-dim:#5c471f;
+    --teal:#4fb6a6;
+    --text:#ece9e0;
+    --muted:#8b8fa3;
+    --card-ink:#20232d;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--ink);
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    display:flex;
+    height:100vh;
+    overflow:hidden;
+  }
+
+  /* Sidebar */
+  .sidebar{
+    width:220px;
+    flex-shrink:0;
+    background:var(--panel);
+    border-right:1px solid #262a38;
+    display:flex;
+    flex-direction:column;
+    padding:24px 16px;
+  }
+  .brand{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:22px;
+    letter-spacing:-0.01em;
+    margin-bottom:4px;
+  }
+  .brand span{color:var(--amber);}
+  .tagline{
+    font-size:12px;
+    color:var(--muted);
+    margin-bottom:28px;
+  }
+  .section-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin:0 0 10px 2px;
+  }
+  .subject-list{
+    display:flex;
+    flex-direction:column;
+    gap:6px;
+    margin-bottom:28px;
+  }
+  .subject-chip{
+    all:unset;
+    cursor:pointer;
+    font-size:13px;
+    color:var(--text);
+    background:var(--panel-2);
+    border:1px solid transparent;
+    border-radius:6px;
+    padding:9px 12px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    transition:border-color .15s ease, background .15s ease;
+  }
+  .subject-chip:hover{border-color:#33384a;}
+  .subject-chip.active{
+    border-color:var(--amber);
+    background:#241f16;
+    color:var(--amber);
+  }
+  .subject-dot{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--teal);
+    flex-shrink:0;
+  }
+  .subject-chip.active .subject-dot{background:var(--amber);}
+
+  .sidebar-foot{
+    margin-top:auto;
+    font-size:11px;
+    color:var(--muted);
+    line-height:1.5;
+    border-top:1px solid #262a38;
+    padding-top:14px;
+  }
+
+  /* Main */
+  .main{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    min-width:0;
+  }
+  .topbar{
+    padding:16px 28px;
+    border-bottom:1px solid #262a38;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+  }
+  .topbar-title{
+    font-family:'Fraunces',serif;
+    font-size:16px;
+    font-weight:500;
+  }
+  .topbar-sub{
+    font-size:12px;
+    color:var(--muted);
+  }
+  .clear-btn{
+    all:unset;
+    cursor:pointer;
+    font-size:12px;
+    color:var(--muted);
+    border:1px solid #2c303e;
+    padding:6px 12px;
+    border-radius:6px;
+  }
+  .clear-btn:hover{color:var(--text);border-color:#454b60;}
+
+  .chat-scroll{
+    flex:1;
+    overflow-y:auto;
+    padding:32px 0 20px;
+  }
+  .chat-inner{
+    max-width:720px;
+    margin:0 auto;
+    padding:0 28px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+  }
+
+  .empty-state{
+    max-width:720px;
+    margin:60px auto;
+    padding:0 28px;
+    text-align:center;
+  }
+  .empty-state h1{
+    font-family:'Fraunces',serif;
+    font-weight:500;
+    font-size:26px;
+    margin:0 0 10px;
+  }
+  .empty-state p{
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.6;
+    margin:0 auto 26px;
+    max-width:440px;
+  }
+  .prompt-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:center;
+  }
+  .prompt-suggest{
+    all:unset;
+    cursor:pointer;
+    font-size:12.5px;
+    color:var(--text);
+    background:var(--panel-2);
+    border:1px solid #2c303e;
+    padding:8px 13px;
+    border-radius:20px;
+  }
+  .prompt-suggest:hover{border-color:var(--amber);color:var(--amber);}
+
+  /* Message cards */
+  .msg-row{display:flex;}
+  .msg-row.user{justify-content:flex-end;}
+  .msg-row.assistant{justify-content:flex-start;}
+
+  .card{
+    max-width:82%;
+    padding:14px 16px 12px;
+    border-radius:3px 3px 10px 10px;
+    position:relative;
+    line-height:1.6;
+    font-size:14.5px;
+  }
+  .card::before{
+    content:"";
+    position:absolute;
+    top:0; left:0; right:0;
+    height:6px;
+    background-image:
+      radial-gradient(circle at 8px 0, transparent 5px, var(--ink) 5.5px),
+      linear-gradient(var(--_c), var(--_c));
+    background-size:16px 12px, 100% 12px;
+    background-repeat:repeat-x;
+    background-position:0 -6px, 0 6px;
+  }
+  .card.user{
+    --_c: #2a2113;
+    background:#2a2113;
+    border:1px solid var(--amber-dim);
+    color:#f3e4c6;
+    border-top-left-radius:10px;
+  }
+  .card.assistant{
+    --_c: var(--paper);
+    background:var(--paper);
+    color:#2a2620;
+    border:1px solid var(--paper-line);
+    border-top-right-radius:10px;
+  }
+  .card .role-tag{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:9.5px;
+    letter-spacing:0.06em;
+    text-transform:uppercase;
+    opacity:0.55;
+    display:block;
+    margin-bottom:6px;
+  }
+  .card p{margin:0 0 10px;}
+  .card p:last-child{margin-bottom:0;}
+  .card ul, .card ol{margin:0 0 10px; padding-left:20px;}
+  .card code{
+    background:rgba(0,0,0,0.08);
+    padding:1px 5px;
+    border-radius:4px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+  }
+  .card.user code{background:rgba(255,255,255,0.1);}
+  .card pre{
+    background:rgba(0,0,0,0.06);
+    padding:10px 12px;
+    border-radius:6px;
+    overflow-x:auto;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    margin:0 0 10px;
+  }
+
+  .typing{
+    display:flex;
+    gap:4px;
+    padding:4px 2px;
+  }
+  .typing span{
+    width:5px;height:5px;border-radius:50%;
+    background:#8b8478;
+    animation:bounce 1.1s infinite ease-in-out;
+  }
+  .typing span:nth-child(2){animation-delay:.15s;}
+  .typing span:nth-child(3){animation-delay:.3s;}
+  @keyframes bounce{
+    0%,60%,100%{transform:translateY(0); opacity:.5;}
+    30%{transform:translateY(-4px); opacity:1;}
+  }
+
+  /* Input */
+  .input-bar{
+    border-top:1px solid #262a38;
+    padding:16px 28px 20px;
+  }
+  .input-inner{
+    max-width:720px;
+    margin:0 auto;
+    display:flex;
+    align-items:flex-end;
+    gap:10px;
+    background:var(--panel-2);
+    border:1px solid #2c303e;
+    border-radius:12px;
+    padding:8px 8px 8px 16px;
+  }
+  .input-inner:focus-within{border-color:var(--amber);}
+  textarea{
+    all:unset;
+    flex:1;
+    resize:none;
+    max-height:140px;
+    color:var(--text);
+    font-family:'Inter',sans-serif;
+    font-size:14px;
+    line-height:1.5;
+    padding:8px 0;
+  }
+  textarea::placeholder{color:var(--muted);}
+  .send-btn{
+    all:unset;
+    cursor:pointer;
+    width:34px;height:34px;
+    border-radius:8px;
+    background:var(--amber);
+    color:#2a1d05;
+    display:flex;align-items:center;justify-content:center;
+    flex-shrink:0;
+    transition:opacity .15s ease;
+  }
+  .send-btn:disabled{opacity:0.35;cursor:default;}
+  .send-btn svg{width:16px;height:16px;}
+  .hint{
+    max-width:720px;
+    margin:8px auto 0;
+    font-size:11px;
+    color:var(--muted);
+    text-align:center;
+  }
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:#2c303e;border-radius:4px;}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="brand">Nub<span>li</span></div>
+  <div class="tagline">an AI study companion</div>
+
+  <div class="section-label">Subjects</div>
+  <div class="subject-list" id="subjectList">
+    <button class="subject-chip active" data-subject="General"><span class="subject-dot"></span>General</button>
+    <button class="subject-chip" data-subject="Math"><span class="subject-dot"></span>Math</button>
+    <button class="subject-chip" data-subject="Science"><span class="subject-dot"></span>Science</button>
+    <button class="subject-chip" data-subject="History"><span class="subject-dot"></span>History</button>
+    <button class="subject-chip" data-subject="Writing"><span class="subject-dot"></span>Writing / English</button>
+    <button class="subject-chip" data-subject="Languages"><span class="subject-dot"></span>Languages</button>
+    <button class="subject-chip" data-subject="Test prep"><span class="subject-dot"></span>Test prep</button>
+  </div>
+
+  <div class="sidebar-foot">
+    Answers study questions only, kept short and to the point. Off-topic questions get politely redirected.
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topTitle">General study help</div>
+      <div class="topbar-sub" id="topSub">Ask anything — I'll walk you through it</div>
+    </div>
+    <button class="clear-btn" id="clearBtn">Clear chat</button>
+  </div>
+
+  <div class="chat-scroll" id="chatScroll">
+    <div class="empty-state" id="emptyState">
+      <h1>What are you working on?</h1>
+      <p>Pick a subject on the left, then ask a question, paste a problem, or describe what you're stuck on. I'll explain the reasoning, not just give the answer.</p>
+      <div class="prompt-row">
+        <button class="prompt-suggest">Explain photosynthesis simply</button>
+        <button class="prompt-suggest">Help me solve 3x + 7 = 22</button>
+        <button class="prompt-suggest">Quiz me on WWII causes</button>
+        <button class="prompt-suggest">Check my essay thesis</button>
+      </div>
+    </div>
+    <div class="chat-inner" id="chatInner"></div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-inner">
+      <textarea id="input" placeholder="Ask a question or paste your problem..." rows="1"></textarea>
+      <button class="send-btn" id="sendBtn" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+      </button>
+    </div>
+    <div class="hint">Nubli can make mistakes. Double-check important facts before an exam.</div>
+  </div>
+</div>
+
+<script>
+let currentSubject = "General";
+let history = [];
+
+const subjectMeta = {
+  "General": {title:"General study help", sub:"Ask anything — I'll walk you through it"},
+  "Math": {title:"Math help", sub:"Show your work and I'll help you find the next step"},
+  "Science": {title:"Science help", sub:"Concepts, labs, and why things work the way they do"},
+  "History": {title:"History help", sub:"Causes, context, and connecting the timeline"},
+  "Writing": {title:"Writing / English help", sub:"Structure, grammar, and stronger arguments"},
+  "Languages": {title:"Language practice", sub:"Vocabulary, grammar, and conversation practice"},
+  "Test prep": {title:"Test prep", sub:"Practice questions and review strategy"}
+};
+
+const subjectListEl = document.getElementById('subjectList');
+const chatScroll = document.getElementById('chatScroll');
+const chatInner = document.getElementById('chatInner');
+const emptyState = document.getElementById('emptyState');
+const input = document.getElementById('input');
+const sendBtn = document.getElementById('sendBtn');
+const topTitle = document.getElementById('topTitle');
+const topSub = document.getElementById('topSub');
+const clearBtn = document.getElementById('clearBtn');
+
+subjectListEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.subject-chip');
+  if(!btn) return;
+  document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
+  btn.classList.add('active');
+  currentSubject = btn.dataset.subject;
+  const meta = subjectMeta[currentSubject];
+  topTitle.textContent = meta.title;
+  topSub.textContent = meta.sub;
+});
+
+document.querySelectorAll('.prompt-suggest').forEach(btn => {
+  btn.addEventListener('click', () => {
+    input.value = btn.textContent;
+    sendMessage();
+  });
+});
+
+clearBtn.addEventListener('click', () => {
+  history = [];
+  chatInner.innerHTML = '';
+  emptyState.style.display = 'block';
+});
+
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 140) + 'px';
+});
+
+input.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter' && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+sendBtn.addEventListener('click', sendMessage);
+
+function escapeHtml(str){
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function renderMarkdownLite(text){
+  let html = escapeHtml(text);
+  html = html.replace(/```([\s\S]*?)```/g, (m, code) => `<pre>${code.trim()}</pre>`);
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  const lines = html.split('\n');
+  let out = '';
+  let inList = false;
+  for(const line of lines){
+    const m = line.match(/^[-*]\s+(.*)/);
+    if(m){
+      if(!inList){ out += '<ul>'; inList = true; }
+      out += `<li>${m[1]}</li>`;
+    } else {
+      if(inList){ out += '</ul>'; inList = false; }
+      if(line.trim() === ''){ continue; }
+      out += `<p>${line}</p>`;
+    }
+  }
+  if(inList) out += '</ul>';
+  return out || '<p></p>';
+}
+
+function addMessage(role, text){
+  emptyState.style.display = 'none';
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+  const card = document.createElement('div');
+  card.className = `card ${role}`;
+  const tag = document.createElement('span');
+  tag.className = 'role-tag';
+  tag.textContent = role === 'user' ? 'you' : 'studydesk';
+  card.appendChild(tag);
+  const body = document.createElement('div');
+  body.className = 'body';
+  body.innerHTML = renderMarkdownLite(text);
+  card.appendChild(body);
+  row.appendChild(card);
+  chatInner.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+  return body;
+}
+
+function addTyping(){
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.id = 'typingRow';
+  const card = document.createElement('div');
+  card.className = 'card assistant';
+  card.innerHTML = '<span class="role-tag">studydesk</span><div class="typing"><span></span><span></span><span></span></div>';
+  row.appendChild(card);
+  chatInner.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+
+function removeTyping(){
+  const el = document.getElementById('typingRow');
+  if(el) el.remove();
+}
+
+async function sendMessage(){
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+  input.style.height = 'auto';
+  sendBtn.disabled = true;
+
+  addMessage('user', text);
+  history.push({role:'user', content:text});
+  addTyping();
+
+  try{
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        subject: currentSubject,
+        messages: history
+      })
+    });
+
+    const data = await response.json();
+    removeTyping();
+
+    if(response.ok && data.reply){
+      addMessage('assistant', data.reply);
+      history.push({role:'assistant', content: data.reply});
+    } else {
+      addMessage('assistant', data.error || "Sorry, something went wrong on my end. Try asking again.");
+    }
+  } catch(err){
+    removeTyping();
+    addMessage('assistant', "I couldn't reach the AI service just now. Check your connection and try again.");
+  }
+
+  sendBtn.disabled = false;
+  input.focus();
+}
+</script>
+
+</body>
+</html>
