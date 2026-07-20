@@ -328,10 +328,91 @@
 
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:#2c303e;border-radius:4px;}
+
+  /* Password gate */
+  .gate-overlay{
+    position:fixed;
+    inset:0;
+    background:var(--ink);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+  }
+  .gate-card{
+    width:100%;
+    max-width:320px;
+    padding:0 24px;
+    text-align:center;
+  }
+  .gate-brand{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:24px;
+    margin-bottom:6px;
+  }
+  .gate-brand span{color:var(--amber);}
+  .gate-sub{
+    font-size:13px;
+    color:var(--muted);
+    margin-bottom:22px;
+  }
+  .gate-input{
+    all:unset;
+    box-sizing:border-box;
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid #2c303e;
+    border-radius:8px;
+    padding:11px 14px;
+    color:var(--text);
+    font-size:14px;
+    margin-bottom:12px;
+  }
+  .gate-input:focus{border-color:var(--amber);}
+  .gate-btn{
+    all:unset;
+    box-sizing:border-box;
+    width:100%;
+    cursor:pointer;
+    background:var(--amber);
+    color:#2a1d05;
+    font-weight:600;
+    font-size:14px;
+    text-align:center;
+    padding:11px 14px;
+    border-radius:8px;
+  }
+  .gate-btn:disabled{opacity:0.5;cursor:default;}
+  .gate-error{
+    color:#e07a6b;
+    font-size:12.5px;
+    margin-top:10px;
+    min-height:16px;
+  }
+  .app-shell{
+    display:none;
+    width:100%;
+    height:100%;
+  }
+  .app-shell.visible{
+    display:flex;
+  }
 </style>
 </head>
 <body>
 
+<div class="gate-overlay" id="gateOverlay">
+  <div class="gate-card">
+    <div class="gate-brand">Nub<span>li</span></div>
+    <div class="gate-sub">Enter the access password to continue</div>
+    <input type="password" class="gate-input" id="gateInput" placeholder="Password" autocomplete="off">
+    <button class="gate-btn" id="gateBtn">Enter</button>
+    <div class="gate-error" id="gateError"></div>
+  </div>
+</div>
+
+<div class="app-shell" id="appShell">
 <div class="sidebar">
   <div class="brand">Nub<span>li</span></div>
   <div class="tagline">an AI study companion</div>
@@ -385,8 +466,59 @@
     <div class="hint">Nubli can make mistakes. Double-check important facts before an exam.</div>
   </div>
 </div>
+</div>
 
 <script>
+let appPassword = "";
+
+const gateOverlay = document.getElementById('gateOverlay');
+const gateInput = document.getElementById('gateInput');
+const gateBtn = document.getElementById('gateBtn');
+const gateError = document.getElementById('gateError');
+const appShell = document.getElementById('appShell');
+
+async function tryUnlock(){
+  const value = gateInput.value.trim();
+  if(!value) return;
+  gateBtn.disabled = true;
+  gateError.textContent = '';
+
+  try{
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        password: value,
+        verifyOnly: true
+      })
+    });
+
+    if(response.status === 401){
+      gateError.textContent = 'Incorrect password. Try again.';
+      gateBtn.disabled = false;
+      return;
+    }
+
+    // Any non-401 response (success or another error like a busy API)
+    // means the password itself was accepted.
+    appPassword = value;
+    gateOverlay.style.display = 'none';
+    appShell.classList.add('visible');
+  } catch(err){
+    gateError.textContent = "Couldn't reach the server. Check your connection.";
+    gateBtn.disabled = false;
+  }
+}
+
+gateBtn.addEventListener('click', tryUnlock);
+gateInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){
+    e.preventDefault();
+    tryUnlock();
+  }
+});
+gateInput.focus();
+
 let currentSubject = "General";
 let history = [];
 
@@ -531,6 +663,7 @@ async function sendMessage(){
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         subject: currentSubject,
+        password: appPassword,
         messages: history
       })
     });
