@@ -54,7 +54,23 @@ export default async function handler(req, res) {
     return;
   }
 
-  const { subject, messages } = req.body || {};
+  const { subject, messages, password } = req.body || {};
+
+  if (!process.env.APP_PASSWORD) {
+    res.status(500).json({ error: "Server is missing APP_PASSWORD. Set it in your deployment's environment variables." });
+    return;
+  }
+
+  if (password !== process.env.APP_PASSWORD) {
+    res.status(401).json({ error: "Incorrect password." });
+    return;
+  }
+
+  // Password-check-only request from the gate screen — don't call the AI.
+  if (req.body?.verifyOnly) {
+    res.status(200).json({ ok: true });
+    return;
+  }
 
   if (!Array.isArray(messages) || messages.length === 0) {
     res.status(400).json({ error: "Missing messages" });
