@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Nubil</title>
+<title>Nubli</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
@@ -418,6 +418,50 @@
     margin-top:10px;
     min-height:16px;
   }
+  .gate-success{
+    color:var(--teal);
+    font-size:12.5px;
+    margin-top:10px;
+    min-height:16px;
+  }
+  .gate-tabs{
+    display:flex;
+    gap:6px;
+    background:var(--panel-2);
+    border-radius:8px;
+    padding:4px;
+    margin-bottom:18px;
+  }
+  .gate-tab{
+    all:unset;
+    flex:1;
+    text-align:center;
+    cursor:pointer;
+    font-size:12.5px;
+    color:var(--muted);
+    padding:8px 0;
+    border-radius:6px;
+  }
+  .gate-tab.active{
+    background:var(--panel);
+    color:var(--text);
+  }
+  .gate-hint{
+    font-size:11px;
+    color:var(--muted);
+    margin-top:14px;
+  }
+  .logout-btn{
+    all:unset;
+    cursor:pointer;
+    font-size:12px;
+    color:var(--muted);
+    border:1px solid #2c303e;
+    padding:6px 12px;
+    border-radius:6px;
+    margin-left:8px;
+  }
+  .logout-btn:hover{color:var(--text);border-color:#454b60;}
   .app-shell{
     display:none;
     width:100%;
@@ -519,22 +563,32 @@
     }
   }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 
 <div class="gate-overlay" id="gateOverlay">
   <div class="gate-card">
-    <div class="gate-brand">Nub<span>il</span></div>
-    <div class="gate-sub">Enter the access password to continue</div>
-    <input type="password" class="gate-input" id="gateInput" placeholder="Password" autocomplete="off">
-    <button class="gate-btn" id="gateBtn">Enter</button>
+    <div class="gate-brand">Nub<span>li</span></div>
+    <div class="gate-sub" id="gateSub">Sign in to save your study history</div>
+
+    <div class="gate-tabs">
+      <button class="gate-tab active" id="loginTab">Log in</button>
+      <button class="gate-tab" id="signupTab">Sign up</button>
+    </div>
+
+    <input type="email" class="gate-input" id="emailInput" placeholder="Email" autocomplete="email">
+    <input type="password" class="gate-input" id="passwordInput" placeholder="Password" autocomplete="current-password">
+    <button class="gate-btn" id="gateBtn">Log in</button>
     <div class="gate-error" id="gateError"></div>
+    <div class="gate-success" id="gateSuccess"></div>
+    <div class="gate-hint" id="gateHint">Your study history is saved to your account and available on any device.</div>
   </div>
 </div>
 
 <div class="app-shell" id="appShell">
 <div class="sidebar">
-  <div class="brand">Nub<span>il</span></div>
+  <div class="brand">Nub<span>li</span></div>
   <div class="tagline">an AI study companion</div>
 
   <div class="section-label">Subjects</div>
@@ -566,7 +620,10 @@
         <div class="topbar-sub" id="topSub">Ask anything — I'll walk you through it</div>
       </div>
     </div>
-    <button class="clear-btn" id="clearBtn">Clear chat</button>
+    <div style="display:flex;">
+      <button class="clear-btn" id="clearBtn">Clear chat</button>
+      <button class="logout-btn" id="logoutBtn">Log out</button>
+    </div>
   </div>
 
   <div class="chat-scroll" id="chatScroll">
@@ -590,64 +647,125 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
       </button>
     </div>
-    <div class="hint">Nubil can make mistakes. Double-check important facts before an exam.</div>
+    <div class="hint">Nubli can make mistakes. Double-check important facts before an exam.</div>
   </div>
 </div>
 </div>
 
 <script>
-let appPassword = "";
+// ---- Configuration: fill these in with your Supabase project values ----
+const SUPABASE_URL = "https://ecewxcvewxnmyaklmgfu.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVjZXd4Y3Zld3hubXlha2xtZ2Z1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ3OTUyMTUsImV4cCI6MjEwMDM3MTIxNX0.IWPSI3E__HTS6IkVJW3XejECz26T52FNgen7duCilqo";
+// --------------------------------------------------------------------------
+
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let session = null;
+let currentSubject = "General";
+let history = [];
+let authMode = 'login'; // 'login' or 'signup'
 
 const gateOverlay = document.getElementById('gateOverlay');
-const gateInput = document.getElementById('gateInput');
+const gateSub = document.getElementById('gateSub');
+const loginTab = document.getElementById('loginTab');
+const signupTab = document.getElementById('signupTab');
+const emailInput = document.getElementById('emailInput');
+const passwordInput = document.getElementById('passwordInput');
 const gateBtn = document.getElementById('gateBtn');
 const gateError = document.getElementById('gateError');
+const gateSuccess = document.getElementById('gateSuccess');
 const appShell = document.getElementById('appShell');
+const logoutBtn = document.getElementById('logoutBtn');
 
-async function tryUnlock(){
-  const value = gateInput.value.trim();
-  if(!value) return;
+function setAuthMode(mode){
+  authMode = mode;
+  gateError.textContent = '';
+  gateSuccess.textContent = '';
+  if(mode === 'login'){
+    loginTab.classList.add('active');
+    signupTab.classList.remove('active');
+    gateBtn.textContent = 'Log in';
+    gateSub.textContent = 'Sign in to save your study history';
+    passwordInput.setAttribute('autocomplete', 'current-password');
+  } else {
+    signupTab.classList.add('active');
+    loginTab.classList.remove('active');
+    gateBtn.textContent = 'Sign up';
+    gateSub.textContent = 'Create an account to get started';
+    passwordInput.setAttribute('autocomplete', 'new-password');
+  }
+}
+loginTab.addEventListener('click', () => setAuthMode('login'));
+signupTab.addEventListener('click', () => setAuthMode('signup'));
+
+async function handleAuthSubmit(){
+  const email = emailInput.value.trim();
+  const password = passwordInput.value;
+  if(!email || !password){
+    gateError.textContent = 'Please enter an email and password.';
+    return;
+  }
   gateBtn.disabled = true;
   gateError.textContent = '';
+  gateSuccess.textContent = '';
 
-  try{
-    const response = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        password: value,
-        verifyOnly: true
-      })
-    });
-
-    if(response.status === 401){
-      gateError.textContent = 'Incorrect password. Try again.';
-      gateBtn.disabled = false;
+  if(authMode === 'login'){
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    gateBtn.disabled = false;
+    if(error){
+      gateError.textContent = error.message;
       return;
     }
-
-    // Any non-401 response (success or another error like a busy API)
-    // means the password itself was accepted.
-    appPassword = value;
-    gateOverlay.style.display = 'none';
-    appShell.classList.add('visible');
-  } catch(err){
-    gateError.textContent = "Couldn't reach the server. Check your connection.";
+    session = data.session;
+    enterApp();
+  } else {
+    const { data, error } = await supabase.auth.signUp({ email, password });
     gateBtn.disabled = false;
+    if(error){
+      gateError.textContent = error.message;
+      return;
+    }
+    if(data.session){
+      session = data.session;
+      enterApp();
+    } else {
+      gateSuccess.textContent = 'Account created. Check your email to confirm, then log in.';
+      setAuthMode('login');
+    }
   }
 }
 
-gateBtn.addEventListener('click', tryUnlock);
-gateInput.addEventListener('keydown', (e) => {
-  if(e.key === 'Enter'){
-    e.preventDefault();
-    tryUnlock();
-  }
+gateBtn.addEventListener('click', handleAuthSubmit);
+passwordInput.addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); handleAuthSubmit(); }
 });
-gateInput.focus();
 
-let currentSubject = "General";
-let history = [];
+logoutBtn.addEventListener('click', async () => {
+  await supabase.auth.signOut();
+  session = null;
+  history = [];
+  chatInner.innerHTML = '';
+  emptyState.style.display = 'block';
+  appShell.classList.remove('visible');
+  gateOverlay.style.display = 'flex';
+  emailInput.value = '';
+  passwordInput.value = '';
+});
+
+async function enterApp(){
+  gateOverlay.style.display = 'none';
+  appShell.classList.add('visible');
+  await loadHistoryForSubject(currentSubject);
+}
+
+// On page load, check if there's already a valid session (so refresh doesn't log the user out).
+(async () => {
+  const { data } = await supabase.auth.getSession();
+  if(data?.session){
+    session = data.session;
+    enterApp();
+  }
+})();
 
 const subjectMeta = {
   "General": {title:"General study help", sub:"Ask anything — I'll walk you through it"},
@@ -686,7 +804,7 @@ menuBtn.addEventListener('click', () => {
 });
 sidebarBackdrop.addEventListener('click', closeSidebar);
 
-subjectListEl.addEventListener('click', (e) => {
+subjectListEl.addEventListener('click', async (e) => {
   const btn = e.target.closest('.subject-chip');
   if(!btn) return;
   document.querySelectorAll('.subject-chip').forEach(c => c.classList.remove('active'));
@@ -696,6 +814,7 @@ subjectListEl.addEventListener('click', (e) => {
   topTitle.textContent = meta.title;
   topSub.textContent = meta.sub;
   closeSidebar();
+  await loadHistoryForSubject(currentSubject);
 });
 
 document.querySelectorAll('.prompt-suggest').forEach(btn => {
@@ -705,7 +824,12 @@ document.querySelectorAll('.prompt-suggest').forEach(btn => {
   });
 });
 
-clearBtn.addEventListener('click', () => {
+clearBtn.addEventListener('click', async () => {
+  if(!session) return;
+  if(!confirm('Clear this subject\'s history? This cannot be undone.')) return;
+  await supabase.from('messages').delete()
+    .eq('user_id', session.user.id)
+    .eq('subject', currentSubject);
   history = [];
   chatInner.innerHTML = '';
   emptyState.style.display = 'block';
@@ -762,7 +886,7 @@ function addMessage(role, text){
   card.className = `card ${role}`;
   const tag = document.createElement('span');
   tag.className = 'role-tag';
-  tag.textContent = role === 'user' ? 'you' : 'studydesk';
+  tag.textContent = role === 'user' ? 'you' : 'nubli';
   card.appendChild(tag);
   const body = document.createElement('div');
   body.className = 'body';
@@ -780,7 +904,7 @@ function addTyping(){
   row.id = 'typingRow';
   const card = document.createElement('div');
   card.className = 'card assistant';
-  card.innerHTML = '<span class="role-tag">studydesk</span><div class="typing"><span></span><span></span><span></span></div>';
+  card.innerHTML = '<span class="role-tag">nubli</span><div class="typing"><span></span><span></span><span></span></div>';
   row.appendChild(card);
   chatInner.appendChild(row);
   chatScroll.scrollTop = chatScroll.scrollHeight;
@@ -791,15 +915,47 @@ function removeTyping(){
   if(el) el.remove();
 }
 
+async function loadHistoryForSubject(subject){
+  history = [];
+  chatInner.innerHTML = '';
+  emptyState.style.display = 'block';
+  if(!session) return;
+
+  const { data, error } = await supabase
+    .from('messages')
+    .select('role, content')
+    .eq('user_id', session.user.id)
+    .eq('subject', subject)
+    .order('created_at', { ascending: true });
+
+  if(error || !data || data.length === 0) return;
+
+  data.forEach(row => {
+    addMessage(row.role, row.content);
+    history.push({ role: row.role, content: row.content });
+  });
+}
+
+async function saveMessage(role, content){
+  if(!session) return;
+  await supabase.from('messages').insert({
+    user_id: session.user.id,
+    subject: currentSubject,
+    role,
+    content
+  });
+}
+
 async function sendMessage(){
   const text = input.value.trim();
-  if(!text) return;
+  if(!text || !session) return;
   input.value = '';
   input.style.height = 'auto';
   sendBtn.disabled = true;
 
   addMessage('user', text);
   history.push({role:'user', content:text});
+  saveMessage('user', text);
   addTyping();
 
   try{
@@ -808,7 +964,7 @@ async function sendMessage(){
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         subject: currentSubject,
-        password: appPassword,
+        access_token: session.access_token,
         messages: history
       })
     });
@@ -819,6 +975,9 @@ async function sendMessage(){
     if(response.ok && data.reply){
       addMessage('assistant', data.reply);
       history.push({role:'assistant', content: data.reply});
+      saveMessage('assistant', data.reply);
+    } else if(response.status === 401){
+      addMessage('assistant', "Your session expired. Please refresh and log in again.");
     } else {
       addMessage('assistant', data.error || "Sorry, something went wrong on my end. Try asking again.");
     }
