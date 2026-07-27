@@ -485,6 +485,84 @@
     margin-left:8px;
   }
   .logout-btn:hover{color:var(--text);border-color:#454b60;}
+
+  .avatar-btn{
+    all:unset;
+    cursor:pointer;
+    width:32px;height:32px;
+    border-radius:50%;
+    background:var(--panel-2);
+    border:1px solid #2c303e;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:16px;
+    margin-right:8px;
+    flex-shrink:0;
+  }
+  .avatar-btn:hover{border-color:var(--amber);}
+
+  .avatar-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,0.55);
+    align-items:center;
+    justify-content:center;
+    z-index:90;
+  }
+  .avatar-overlay.visible{display:flex;}
+  .avatar-picker{
+    background:var(--panel);
+    border:1px solid #2c303e;
+    border-radius:14px;
+    padding:22px;
+    max-width:320px;
+    width:100%;
+    text-align:center;
+  }
+  .avatar-picker-title{
+    font-family:'Fraunces',serif;
+    font-size:16px;
+    margin-bottom:16px;
+  }
+  .avatar-grid{
+    display:grid;
+    grid-template-columns:repeat(5, 1fr);
+    gap:8px;
+    margin-bottom:18px;
+  }
+  .avatar-option{
+    all:unset;
+    cursor:pointer;
+    width:46px;height:46px;
+    border-radius:50%;
+    background:var(--panel-2);
+    border:2px solid transparent;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:20px;
+    margin:0 auto;
+  }
+  .avatar-option:hover{border-color:#454b60;}
+  .avatar-option.selected{
+    border-color:var(--amber);
+    background:#241f16;
+  }
+  .avatar-close-btn{
+    all:unset;
+    box-sizing:border-box;
+    width:100%;
+    cursor:pointer;
+    background:var(--amber);
+    color:#2a1d05;
+    font-weight:600;
+    font-size:13.5px;
+    text-align:center;
+    padding:10px 14px;
+    border-radius:8px;
+  }
   .app-shell{
     display:none;
     width:100%;
@@ -648,9 +726,18 @@
         <div class="topbar-sub" id="topSub">Ask anything — I'll walk you through it</div>
       </div>
     </div>
-    <div style="display:flex;">
+    <div style="display:flex;align-items:center;">
+      <button class="avatar-btn" id="avatarBtn" aria-label="Choose avatar" title="Choose your avatar">🦊</button>
       <button class="clear-btn" id="clearBtn">Clear chat</button>
       <button class="logout-btn" id="logoutBtn">Log out</button>
+    </div>
+  </div>
+
+  <div class="avatar-overlay" id="avatarOverlay">
+    <div class="avatar-picker">
+      <div class="avatar-picker-title">Choose your avatar</div>
+      <div class="avatar-grid" id="avatarGrid"></div>
+      <button class="avatar-close-btn" id="avatarCloseBtn">Done</button>
     </div>
   </div>
 
@@ -793,9 +880,48 @@ logoutBtn.addEventListener('click', async () => {
   passwordInput.value = '';
 });
 
+const AVATAR_OPTIONS = ['🦊','🐼','🐨','🦁','🐯','🐸','🦉','🐢','🐬','🦄','🐙','🐝','🐧','🦋','🐳','🐺','🐻','🐰','🦜','🐌'];
+let currentAvatar = '🦊';
+
+const avatarBtn = document.getElementById('avatarBtn');
+const avatarOverlay = document.getElementById('avatarOverlay');
+const avatarGrid = document.getElementById('avatarGrid');
+const avatarCloseBtn = document.getElementById('avatarCloseBtn');
+
+function renderAvatarGrid(){
+  avatarGrid.innerHTML = '';
+  AVATAR_OPTIONS.forEach(emoji => {
+    const btn = document.createElement('button');
+    btn.className = 'avatar-option' + (emoji === currentAvatar ? ' selected' : '');
+    btn.textContent = emoji;
+    btn.addEventListener('click', async () => {
+      currentAvatar = emoji;
+      avatarBtn.textContent = emoji;
+      renderAvatarGrid();
+      if(session){
+        await supabaseClient.auth.updateUser({ data: { avatar: emoji } });
+      }
+    });
+    avatarGrid.appendChild(btn);
+  });
+}
+
+avatarBtn.addEventListener('click', () => {
+  renderAvatarGrid();
+  avatarOverlay.classList.add('visible');
+});
+avatarCloseBtn.addEventListener('click', () => {
+  avatarOverlay.classList.remove('visible');
+});
+avatarOverlay.addEventListener('click', (e) => {
+  if(e.target === avatarOverlay) avatarOverlay.classList.remove('visible');
+});
+
 async function enterApp(){
   gateOverlay.style.display = 'none';
   appShell.classList.add('visible');
+  currentAvatar = session?.user?.user_metadata?.avatar || '🦊';
+  avatarBtn.textContent = currentAvatar;
   await loadHistoryForSubject(currentSubject);
 }
 
@@ -927,7 +1053,7 @@ function addMessage(role, text){
   card.className = `card ${role}`;
   const tag = document.createElement('span');
   tag.className = 'role-tag';
-  tag.textContent = role === 'user' ? 'you' : 'nubli';
+  tag.textContent = role === 'user' ? `${currentAvatar} you` : 'nubli';
   card.appendChild(tag);
   const body = document.createElement('div');
   body.className = 'body';
