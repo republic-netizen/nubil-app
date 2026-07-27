@@ -1,5 +1,7 @@
 // This runs on the server (Vercel), never in the student's browser.
-// The API key stays here and is never sent to the frontend.
+// The Anthropic API key stays here and is never sent to the frontend.
+
+import { createClient } from "@supabase/supabase-js";
 
 const SUBJECT_SYSTEM_PROMPTS = {
   General: "You are a patient, encouraging study tutor helping a student with any school subject.",
@@ -22,19 +24,20 @@ const SCOPE_AND_STYLE_RULES =
   "rather than dense paragraphs. Prefer guiding the student toward the answer over just stating it " +
   "outright for homework-style questions, but keep the guidance brief.";
 
-// Simple in-memory rate limiter. Resets when the function cold-starts, so it's
-// not perfect, but it stops runaway costs from a single user hammering the API.
-// For real production traffic, move this to a proper store (e.g. Redis/Upstash).
+// Simple in-memory rate limiter, per logged-in user. Resets when the function
+// cold-starts, so it's not perfect, but it stops a single account from
+// hammering the API and running up cost. For real production traffic, move
+// this to a proper store (e.g. Redis/Upstash).
 const requestLog = new Map();
 const MAX_REQUESTS_PER_WINDOW = 20;
 const WINDOW_MS = 60 * 1000;
 
-function isRateLimited(ip) {
+function isRateLimited(key) {
   const now = Date.now();
-  const entry = requestLog.get(ip) || [];
+  const entry = requestLog.get(key) || [];
   const recent = entry.filter((t) => now - t < WINDOW_MS);
   recent.push(now);
-  requestLog.set(ip, recent);
+  requestLog.set(key, recent);
   return recent.length > MAX_REQUESTS_PER_WINDOW;
 }
 
@@ -44,31 +47,35 @@ export default async function handler(req, res) {
     return;
   }
 
-  const ip =
-    (req.headers["x-forwarded-for"] || "").split(",")[0].trim() ||
-    req.socket?.remoteAddress ||
-    "unknown";
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    res.status(500).json({ error: "Server is missing SUPABASE_URL or SUPABASE_ANON_KEY." });
+    return;
+  }
+  if (!process.env.ANTHROPIC_API_KEY) {
+    res.status(500).json({ error: "Server is missing ANTHROPIC_API_KEY." });
+    return;
+  }
 
-  if (isRateLimited(ip)) {
+  const { subject, messages, access_token } = req.body || {};
+
+  if (!access_token) {
+    res.status(401).json({ error: "Not signed in." });
+    return;
+  }
+
+  // Verify the user's Supabase session token is real and current.
+  const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  const { data: userData, error: userError } = await supabase.auth.getUser(access_token);
+
+  if (userError || !userData?.user) {
+    res.status(401).json({ error: "Your session has expired. Please log in again." });
+    return;
+  }
+
+  const userId = userData.user.id;
+
+  if (isRateLimited(userId)) {
     res.status(429).json({ error: "Too many messages. Please wait a moment and try again." });
-    return;
-  }
-
-  const { subject, messages, password } = req.body || {};
-
-  if (!process.env.APP_PASSWORD) {
-    res.status(500).json({ error: "Server is missing APP_PASSWORD. Set it in your deployment's environment variables." });
-    return;
-  }
-
-  if (password !== process.env.APP_PASSWORD) {
-    res.status(401).json({ error: "Incorrect password." });
-    return;
-  }
-
-  // Password-check-only request from the gate screen — don't call the AI.
-  if (req.body?.verifyOnly) {
-    res.status(200).json({ ok: true });
     return;
   }
 
@@ -78,15 +85,10 @@ export default async function handler(req, res) {
   }
 
   // Cap history sent to the API to control cost and latency.
-  const trimmedMessages = messages.slice(-20);
+  const trimmedMessages = messages.slice(-20).map((m) => ({ role: m.role, content: m.content }));
 
   const subjectPrompt = SUBJECT_SYSTEM_PROMPTS[subject] || SUBJECT_SYSTEM_PROMPTS.General;
   const systemPrompt = `${subjectPrompt} ${SCOPE_AND_STYLE_RULES}`;
-
-  if (!process.env.ANTHROPIC_API_KEY) {
-    res.status(500).json({ error: "Server is missing ANTHROPIC_API_KEY. Set it in your deployment's environment variables." });
-    return;
-  }
 
   try {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
