@@ -1027,14 +1027,19 @@ function renderMarkdownLite(text){
   html = html.replace(/```([\s\S]*?)```/g, (m, code) => `<pre>${code.trim()}</pre>`);
   html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^\s*][^*]*?)\*/g, '<em>$1</em>');
   const lines = html.split('\n');
   let out = '';
   let inList = false;
   for(const line of lines){
-    const m = line.match(/^[-*]\s+(.*)/);
-    if(m){
+    const headingMatch = line.match(/^#{1,4}\s+(.*)/);
+    const listMatch = line.match(/^[-*]\s+(.*)/);
+    if(headingMatch){
+      if(inList){ out += '</ul>'; inList = false; }
+      out += `<p><strong>${headingMatch[1]}</strong></p>`;
+    } else if(listMatch){
       if(!inList){ out += '<ul>'; inList = true; }
-      out += `<li>${m[1]}</li>`;
+      out += `<li>${listMatch[1]}</li>`;
     } else {
       if(inList){ out += '</ul>'; inList = false; }
       if(line.trim() === ''){ continue; }
