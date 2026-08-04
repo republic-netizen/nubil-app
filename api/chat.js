@@ -22,7 +22,9 @@ const SCOPE_AND_STYLE_RULES =
   "while still being clear, use short sentences, avoid unnecessary repetition or filler, and favor " +
   "direct explanations over long-winded ones. Break multi-step problems into short numbered steps " +
   "rather than dense paragraphs. Prefer guiding the student toward the answer over just stating it " +
-  "outright for homework-style questions, but keep the guidance brief.";
+  "outright for homework-style questions, but keep the guidance brief. Never use LaTeX or math " +
+  "notation like dollar signs, $, or $$ around formulas — write formulas and equations in plain " +
+  "text instead, like a^2 + b^2 = c^2. Use plain text for emphasis and structure only.";
 
 // Simple in-memory rate limiter, per logged-in user. Resets when the function
 // cold-starts, so it's not perfect, but it stops a single account from
